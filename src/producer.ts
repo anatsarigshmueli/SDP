@@ -91,14 +91,14 @@ class Producer {
         messages.push(this.createMessage(sessionId));
       }
       const str = JSON.stringify(messages);
-      result.push(`[Producer]sendMessage batch message: ${str} ...\n`);
-      console.log("[Producer]sendMessage batch message: ", messages , "...");
+      result.push(`[Producer]sendMessageAsync batch message: ${str} ...\n`);
+      console.log("[Producer]sendMessageAsync batch message: ", messages , "...");
       return sender.sendBatch(messages);
     } else {
       const msg = this.createMessage(sessionId);
       const str = JSON.stringify(msg);
-      result.push(`[Producer]sendMessage message: ${str} ...\n`);
-      console.log("[Producer]sendMessage message: ", msg , "...");
+      result.push(`[Producer]sendMessageAsync message: ${str} ...\n`);
+      console.log("[Producer]sendMessageAsync message: ", msg , "...");
       return sender.send(msg);
     }
   }
@@ -138,17 +138,21 @@ class Producer {
               }
               Promise.all(promises)
               .then(async (res) => {
-                result.push(`[Producer]produce Async all sent  ${res}\n`);
-                console.log("[Producer]produce Async all sent ", res);
+                result.push(`[Producer]produce Async all sent  \n`);
+                console.log("[Producer]produce Async all sent ");
                 result.push("[Producer]produce message sent - closing\n");
                 console.log("[Producer]produce message sent - closing");
                 result.push("[Producer]produce ======================\n");
                 console.log("[Producer]produce ======================");
-                if (this.client) { await this.client.close() };
+                if (this.client) { 
+                  await this.client.close() 
+                };
+                resolve(result);
               })
             .catch((err) => {
                 result.push(`[Producer]produce Async Error occurred:  ${err}\n`);
                 console.log("[Producer]produce Async Error occurred: ", err);
+                resolve(result);
             });
             } else {
               for (let i = 0; i < n; i++) {
@@ -159,18 +163,18 @@ class Producer {
               result.push("[Producer]produce ======================\n");
               console.log("[Producer]produce ======================");
               await this.client.close();
+              resolve(result);
             }
           }
       
         } catch (error) {
           result.push(`[Producer]produce Error occurred:  ${error}`);
           console.log("[Producer]produce Error occurred: ", error);
+          resolve(result);
       
         } finally {
           await this.sbClient.close();
         }
-        
-        resolve(result);
 
       } else {
         result.push("[Producer]produce  no sender or client");
