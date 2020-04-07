@@ -4,6 +4,10 @@ WORKDIR /user/src/app
 COPY package*.json ./
 RUN npm install
 
-COPY . .
+COPY src src
+COPY tsconfig.json .
+
+RUN npm run build
+
 EXPOSE 8000
 CMD ["node", "dist/index.js"]
