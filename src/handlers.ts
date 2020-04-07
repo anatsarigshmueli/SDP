@@ -1,7 +1,7 @@
 import { Request, Response } from 'express';
 import producer from './producer';
 import consumer  from './consumer';
-import { APIOptions, appParams } from './interfaces';
+import { APIOptions } from './interfaces';
 import environment from './env';
 var url = require('url');
 
@@ -21,20 +21,20 @@ const setEnvControlOptions = (query: any) => {
     }
 }
 
-export const sendHandler = (req: Request, res: Response) => {
+export const sendHandler = async (req: Request, res: Response) => {
     var url_parts = url.parse(req.url, true);
     var query = url_parts.query;
     console.log("\n\n[sendHandler]============  producing message ", query);
-    setEnvControlOptions(query);
-    producer.produce(new APIOptions(query));
-    return res.send(query);
+    //setEnvControlOptions(query);
+    const result = await producer.produce(new APIOptions(query));
+    return res.send(result);
   };
 
-export const recieveHandler = (req: Request, res: Response) => {
+export const recieveHandler = async (req: Request, res: Response) => {
     var url_parts = url.parse(req.url, true);
     var query = url_parts.query;
     console.log("\n\n[recieveHandler]============  consuming message ", query);
-    setEnvControlOptions(query);
-    consumer.consume(new APIOptions(query));
-    return res.json('messages recieved');
+    //setEnvControlOptions(query);
+    const result = await consumer.consume(new APIOptions(query));
+    return res.json(result);
 };

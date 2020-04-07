@@ -52,28 +52,47 @@ class Consumer {
     }
   }
 
-  private async consumeReceiveAndDelete() {
-    if (!this.receiver || !this.client ||  !this.sbClient) {
-      console.log("[Consumer]consume no receiver or client");
-      return;
-    }
+  private async consumeReceiveAndDelete(messageCount: number): Promise<string[]> {
 
-    try {
-      console.log("[Consumer]consumeReceiveAndDelete Receiving messages...");
-      const messages = await this.receiver.receiveMessages(10);
-      console.log("[Consumer]consume Received messages:");
-      messages.forEach((msg: ServiceBusMessage, index)  => {
-        console.log('[Consumer]consume ', index, '\n\tlabel= ',  msg.label, '\n\tmeesageId= ', msg.messageId, '\n\tuserProperties= ',  msg.userProperties, '\n\tbody = ', msg.body, '\n\n\t');
-      });
-      console.log("[Comsumer]consume ==================");
-      await this.client.close();
-    
-    } catch (error){
-      console.log("[Consumer]consume Error occurred: ", error);
-    
-    } finally {
-      await this.sbClient.close();
-    }
+    return new Promise<string[]> (async (resolve, reject) => {
+      
+      let result: string[] = [];
+      
+      if (this.receiver && this.client && this.sbClient) {
+        try {
+          result.push("[Consumer]consumeReceiveAndDelete Receiving messages...\n");
+          console.log("[Consumer]consumeReceiveAndDelete Receiving messages...\n");
+          
+          const messages = await this.receiver.receiveMessages(messageCount);
+          result.push("[Consumer]consumeReceiveAndDelete Received messages:\n");
+          console.log("[Consumer]consumeReceiveAndDelete Received messages:\n");
+          
+          messages.forEach((msg: ServiceBusMessage, index)  => {
+            result.push(`[Consumer]consumeReceiveAndDelete  ${index} \n\tlabel  ${msg.label} \n\tmeesageId=  ${msg.messageId} \n\tuserProperties= ${msg.userProperties} \n\tbody = ${msg.body} \n\n\t`);
+            console.log(`[Consumer]consumeReceiveAndDelete  ${index} \n\tlabel  ${msg.label} \n\tmeesageId=  ${msg.messageId} \n\tuserProperties= ${msg.userProperties} \n\tbody = ${msg.body} \n\n\t`);
+          });
+          result.push("[Comsumer]consumeReceiveAndDelete closing ==================\n");
+          console.log("[Comsumer]consumeReceiveAndDelete closing ==================\n");
+          
+          await this.client.close();
+        
+        } catch (error){
+          result.push(`[Consumer]consumeReceiveAndDelete Error occurred:  ${error}  \n`);
+          console.log("[Consumer]consumeReceiveAndDelete Error occurred: ", error);
+        
+        } finally {
+          await this.sbClient.close();
+        }
+
+        resolve(result);
+
+      } else {
+        result.push("[Consumer]consume Error: no receiver or client\n");
+        console.log("[Consumer]consume Error: no receiver or client\n");
+        resolve(result);
+      }
+    });
+
   }
 
   private async consumePeekLock() {
@@ -108,16 +127,12 @@ class Consumer {
     }
   }
 
-  public async consume(options: APIOptions) {
+  public async consume(options: APIOptions) : Promise<string[]> {
     this.createClientAndReceiver(options.useQueue, options.sessionId);
-    this.consumeReceiveAndDelete();
-
-    //this.consumePeekLock();
+    return this.consumeReceiveAndDelete(options.messagesCount); //this.consumePeekLock();
   }
-
 }
 
 const consumer = new Consumer();
-
 export default consumer;
  
