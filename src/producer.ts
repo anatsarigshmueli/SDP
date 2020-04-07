@@ -2,7 +2,6 @@ import { ServiceBusClient, SendableMessageInfo, QueueClient, Sender, TopicClient
 import environment from "./env";
 import { Utils } from "./utils";
 import { APIOptions } from "./interfaces";
-import { promises } from "dns";
 
 class Producer {
   private connectionString: string | undefined;
@@ -66,40 +65,48 @@ class Producer {
     return message;
   }
 
-  private async sendMessage(sender: Sender, batchCount: number, sessionId: string) {
+  private async sendMessage(sender: Sender, batchCount: number, sessionId: string, result: string[]) {
     if (batchCount > 1) {
       let messages: SendableMessageInfo[] = []; 
       for (let i=0; i < batchCount; i++) {
         messages.push(this.createMessage(sessionId));
       }
+      const str = JSON.stringify(messages);
+      result.push(`[Producer]sendMessage batch message:  ${str} ...\n`);
       console.log("[Producer]sendMessage batch message: ", messages , "...");
       await sender.sendBatch(messages);
     } else {
-      const msg = this.createMessage(sessionId)
+      const msg = this.createMessage(sessionId);
+      const str = JSON.stringify(msg);
+      result.push(`[Producer]sendMessage message: ${str} ...\n`);
       console.log("[Producer]sendMessage message: ", msg , "...");
       await sender.send(msg);
     }
   }
 
-  private async sendMessageAsync(sender: Sender, batchCount: number, sessionId: string): Promise<void> {
+  private async sendMessageAsync(sender: Sender, batchCount: number, sessionId: string, result: string[]): Promise<void> {
     if (batchCount > 1) {
       let messages: SendableMessageInfo[] = []; 
       for (let i=0; i < batchCount; i++) {
         messages.push(this.createMessage(sessionId));
       }
+      const str = JSON.stringify(messages);
+      result.push(`[Producer]sendMessage batch message: ${str} ...\n`);
       console.log("[Producer]sendMessage batch message: ", messages , "...");
       return sender.sendBatch(messages);
     } else {
-      const msg = this.createMessage(sessionId)
+      const msg = this.createMessage(sessionId);
+      const str = JSON.stringify(msg);
+      result.push(`[Producer]sendMessage message: ${str} ...\n`);
       console.log("[Producer]sendMessage message: ", msg , "...");
       return sender.send(msg);
     }
   }
 
-  private async repeatSendingMessage(sender: Sender, n: number, interval: number, batchCount: number, sessionId: string) {
+  private async repeatSendingMessage(sender: Sender, n: number, interval: number, batchCount: number, sessionId: string, result: string[]) {
     let i = 0;
     var refreshId = setInterval(async () => {
-      await this.sendMessage(sender, batchCount, sessionId);
+      await this.sendMessage(sender, batchCount, sessionId, result);
       if (++i >= n) {
         clearInterval(refreshId);
       }
@@ -107,54 +114,70 @@ class Producer {
     }
 
 
-  public async produce(options: APIOptions) {
-    console.log('[Producer]produce ', options);
+  public async produce(options: APIOptions): Promise<string[]> {
+
+    return new Promise<string[]> (async (resolve, reject) => {
+      let result: string[] = [];
     
-    this.createClientAndSender(options.useQueue);
-        
-    if (!this.sender || !this.client ||  !this.sbClient) {
-      console.log("[Producer]produce  no sender or client");
-      return;
-    }
+      result.push(`[Producer]produce ${options}\n`);
+      console.log('[Producer]produce ', options);
+    
+      this.createClientAndSender(options.useQueue);
 
-    const n = options.messagesCount ? options.messagesCount : 1;
-    try {
+      if (this.sender && this.client && this.sbClient) {
+        const n = options.messagesCount ? options.messagesCount : 1;
+        try {
 
-      if (options.interval > 0 ) {
-        await this.repeatSendingMessage(this.sender, options.messagesCount, options.interval, options.batchCount, options.sessionId);
-      } else {
-        if (options.sendAsync) {
-          let promises = [];
-          for (let i = 0; i < n; i++) {
-            promises.push(this.sendMessageAsync(this.sender, options.batchCount, options.sessionId));
+          if (options.interval > 0 ) {
+            await this.repeatSendingMessage(this.sender, options.messagesCount, options.interval, options.batchCount, options.sessionId, result);
+          } else {
+            if (options.sendAsync) {
+              let promises = [];
+              for (let i = 0; i < n; i++) {
+                promises.push(this.sendMessageAsync(this.sender, options.batchCount, options.sessionId, result));
+              }
+              Promise.all(promises)
+              .then(async (res) => {
+                result.push(`[Producer]produce Async all sent  ${res}\n`);
+                console.log("[Producer]produce Async all sent ", res);
+                result.push("[Producer]produce message sent - closing\n");
+                console.log("[Producer]produce message sent - closing");
+                result.push("[Producer]produce ======================\n");
+                console.log("[Producer]produce ======================");
+                if (this.client) { await this.client.close() };
+              })
+            .catch((err) => {
+                result.push(`[Producer]produce Async Error occurred:  ${err}\n`);
+                console.log("[Producer]produce Async Error occurred: ", err);
+            });
+            } else {
+              for (let i = 0; i < n; i++) {
+                await this.sendMessage(this.sender, options.batchCount, options.sessionId, result);
+              }
+              result.push("[Producer]produce message sent - closing\n");
+              console.log("[Producer]produce message sent - closing");
+              result.push("[Producer]produce ======================\n");
+              console.log("[Producer]produce ======================");
+              await this.client.close();
+            }
           }
-          Promise.all(promises)
-           .then(async (results) => {
-            console.log("[Producer]produce Async all sent ", results);
-            console.log("[Producer]produce message sent - closing");
-            console.log("[Producer]produce ======================");
-            if (this.client) { await this.client.close() };
-           })
-           .catch((err) => {
-            console.log("[Producer]produce Async Error occurred: ", err);
-           });
-        } else {
-          for (let i = 0; i < n; i++) {
-            await this.sendMessage(this.sender, options.batchCount, options.sessionId);
-          }
-          console.log("[Producer]produce message sent - closing");
-          console.log("[Producer]produce ======================");
-          await this.client.close();
-        }
-      }
       
-    
-    } catch (error) {
-      console.log("[Producer]produce Error occurred: ", error);
-    
-    } finally {
-      await this.sbClient.close();
-    }
+        } catch (error) {
+          result.push(`[Producer]produce Error occurred:  ${error}`);
+          console.log("[Producer]produce Error occurred: ", error);
+      
+        } finally {
+          await this.sbClient.close();
+        }
+        
+        resolve(result);
+
+      } else {
+        result.push("[Producer]produce  no sender or client");
+        console.log("[Producer]produce  no sender or client");
+        resolve(result);
+      }
+    });
   }
   
 }

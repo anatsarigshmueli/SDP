@@ -8,6 +8,8 @@ app.get('/', rootHandler);
 app.get('/send/', sendHandler);
 app.get('/receive/', recieveHandler);
 
+app.locals.pretty = true;
+
 app.listen(port, err => {
   if (err) return console.error(err);
   return console.log(`@BBBNMS server is listening on ${port}`);
